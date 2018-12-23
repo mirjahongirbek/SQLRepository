@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Joha.Interfaces.Entity;
 
-namespace Joha.Interfaces
+namespace Joha.Interfaces.Repository
 {
     public interface IGenericRepository<T, TKey, TResult> where T : class, IEntity<TKey>
     {
@@ -40,25 +41,5 @@ namespace Joha.Interfaces
         TResult Filter(Func<IQueryable<T>, IQueryable<T>> queryFilter, bool isEnabled = true, string logText = "");
         TResult Filter(Func<IQueryable<IEntity<TKey>>, IQueryable<IEntity<TKey>>> queryFilter, bool isEnabled = true, string logText = "");
         long Max(Expression<Func<T, long>> func, string logText = "");
-    }
-    public interface ILogger<TEntity>
-    {
-        int Second { get; set; }
-        void Create(TEntity result,string text="");
-        void Read(string text = "");
-        
-        void Update(TEntity result, string text = "");
-        void Update(TEntity old, TEntity newEntity, string text = "");
-        void Delete(TEntity result, string text = "");
-        void Delete(Func<TEntity, bool> func, string text="");
-        void Error(Exception exception);
-        void Error(Exception exception, TEntity result, MethodType type, string text="");
-    }
-    public enum MethodType
-    {
-        Create,
-        Read,
-        Update,
-        Delete,
     }
 }

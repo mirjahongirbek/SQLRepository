@@ -1,6 +1,6 @@
 ﻿using Joha.Interfaces;
-using SQRRepository;
-using SQRRepository.Interfaces;
+using SQLRepository;
+using SQLRepository.Interfaces;
 using System;
 
 namespace Samples
@@ -22,7 +22,7 @@ namespace Samples
     {
         public Generic(IDbContext context) : base(context)
         {
-           var s= Filter(m => m.Id == 1);
+           var s= Filter(m => m.Id == 1,);
            
         }
     }

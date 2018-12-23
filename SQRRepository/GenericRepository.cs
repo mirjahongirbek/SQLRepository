@@ -1,5 +1,4 @@
-﻿using Joha.Interfaces;
-using SQRRepository.Interfaces;
+﻿using SQLRepository.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,9 +6,12 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Z.EntityFramework.Plus;
+using Joha.Interfaces.Repository;
+using Joha.Interfaces.Entity;
+using Joha.Interfaces.Logger;
+using Joha.Interfaces.Enums;
 
-
-namespace SQRRepository
+namespace SQLRepository
 {
 
     public class GenericRepository<TEntity, TKey> : IGenericRepository<TEntity, TKey, BaseQueryFilter> where TEntity : class, IEntity<TKey>
@@ -20,6 +22,8 @@ namespace SQRRepository
       protected  DbSet<TEntity> _dbSet;
        protected ILogger<TEntity> _logger;
         bool _state;
+        protected string _name;
+        private  Dictionary<MethodType, UInt64> _states;
         public GenericRepository(IDbContext context)
         {
             _context = context.DataContext;
@@ -28,12 +32,15 @@ namespace SQRRepository
         public GenericRepository(IDbContext context, bool state) : this(context)
         {
             _state = state;
-            var name=typeof(TEntity).Name;
-           var statics= State.Statics.Stat.FirstOrDefault(m=>m.Key== name);
+             _name=typeof(TEntity).Name;
+           var statics= State.Statics.Stat.FirstOrDefault(m=>m.Key== _name);
             if (statics.Key == null)
             {
-                State.Statics.Stat.Add(name, new Dictionary<MethodType, UInt64>() { { MethodType.Create,0},{ MethodType.Delete,0}, { MethodType.Read,0},{ MethodType.Update,0} });
+                _states = new Dictionary<MethodType, UInt64>() { { MethodType.Create, 0 }, { MethodType.Delete, 0 }, { MethodType.Read, 0 }, { MethodType.Update, 0 } };
+                State.Statics.Stat.Add(_name, _states);
             }
+            else _states = statics.Value;
+
         }
         public GenericRepository(IDbContext context, ILogger<TEntity> loggger, int second, bool state=false):this(context, state)
         {
@@ -41,16 +48,38 @@ namespace SQRRepository
             _logger.Second = second;
         }
         #region
-        private void StateAdd() { }
-        private void StateUpdate() { }
-        private void StateDelete() { }
-        private void StateRead() { }
-        private void StateError(TEntity entity, Exception exception) { }
-        private void StateError() { }
-        private void StateError(Exception exption) { }
+        private void StateAdd() {
+            if (!_state) return;
+            _states[MethodType.Create]++;
+        }
+        private void StateUpdate() {
+            if (!_state) return;
+            _states[MethodType.Update]++;
+        }
+        private void StateDelete() {
+            if (!_state) return;
+            _states[MethodType.Delete]++;
+        }
+        private void StateRead() {
+            if (!_state) return;
+            _states[MethodType.Read]++;
+        }
+        private void StateError(TEntity entity, Exception exception) {
+            if (!_state) return;
+
+        }
+        private void StateError(Exception exception, string text) {
+            if (!_state) return;
+        }
+        private void StateError() {
+            if (!_state) return;
+        }
+        private void StateError(Exception exption) {
+            if (!_state) return;
+        }
         private void StateError(Exception exption, TKey id)
         {
-            throw new NotImplementedException();
+            if (!_state) return;
         }
         #endregion
 
@@ -85,14 +114,13 @@ namespace SQRRepository
             }
             catch(Exception exeption)
             {
-                _logger.Error(exeption, t, MethodType.Create);
+                _logger?.Error(exeption, t, MethodType.Create);
                 StateError(t, exeption);
                 return null;
             }
            
         }
         #endregion
-
         #region Count
         public int Count()
         {
@@ -197,7 +225,7 @@ namespace SQRRepository
             catch(Exception exeption)
             {
                 StateError(exeption);
-                _logger.Error(null, null, MethodType.Read, logText);
+                _logger?.Error(null, null, MethodType.Read, logText);
                 return null;
             }
            
@@ -213,7 +241,7 @@ namespace SQRRepository
             catch(Exception expetion)
             {
                 StateError(expetion);
-                _logger.Error(null,null, MethodType.Read,logtext);
+                _logger?.Error(null,null, MethodType.Read,logtext);
                 return null;
                 
             }          
@@ -243,7 +271,7 @@ namespace SQRRepository
             }
             catch (Exception exeption)
             {
-                _logger.Error(exeption);
+                _logger?.Error(exeption);
                 StateError(exeption);
                 return null;
             }
@@ -292,7 +320,8 @@ namespace SQRRepository
             }
             catch(Exception exception)
             {
-
+                _logger?.Error(exception, logText);
+                StateError(exception, logText);
                 return null;
             }
             
@@ -300,14 +329,23 @@ namespace SQRRepository
 
         public IQueryable<TEntity> GetAllIncluding(string logText = "",params Expression<Func<TEntity, object>>[] includeProperties)
         {
-            IQueryable<TEntity> queryable = GetAll();
-            foreach (Expression<Func<TEntity, object>> includeProperty in includeProperties)
+            try
             {
+                IQueryable<TEntity> queryable = GetAll();
+                foreach (Expression<Func<TEntity, object>> includeProperty in includeProperties)
+                {
 
-                queryable = queryable.Include<TEntity, object>(includeProperty);
+                    queryable = queryable.Include<TEntity, object>(includeProperty);
+                }
+                StateRead();
+                return queryable;
             }
-
-            return queryable;
+            catch(Exception exception)
+            {
+                _logger?.Error(exception, logText);
+                return null;
+            }
+           
         }
 
         public virtual async Task<TEntity> GetAsync(int id, string logText = "")
@@ -356,7 +394,7 @@ namespace SQRRepository
             }
             catch(Exception exeption)
             {
-                _logger.Error(exeption, t, MethodType.Update);
+                _logger?.Error(exeption, t, MethodType.Update);
                 return null;
             }
             
@@ -394,16 +432,54 @@ namespace SQRRepository
         }
         #endregion
         #region News
-        public virtual List<TEntity> GetAllFromCache(string logText) {
-            return _dbSet.FromCache().ToList();
+        public virtual List<TEntity> GetAllFromCache(string logText="") {
+            try
+            {
+               var result= _dbSet.FromCache().ToList();
+                _logger?.Read(logText);
+                StateRead();
+                return result;
+            }
+            catch(Exception exception)
+            {
+                _logger?.Error(exception, logText);
+                StateError(exception);
+                return null;
+            }            
         }
         public List<TEntity> FindFromCache(Func<TEntity, bool> func,string logText = "")
         {
-            return _dbSet.Where(func).AsQueryable().FromCache().ToList();
+            try
+            {
+                var result=_dbSet.Where(func).AsQueryable().FromCache().ToList();
+                StateRead();
+                _logger?.Read(logText);
+                return result;
+            }
+            catch(Exception exception)
+            {
+                _logger?.Error(exception, logText);
+                StateError(exception,logText);
+                return null;
+            }
+            
         }
         public virtual async Task<IEnumerable<TEntity>> GetAllFromCacheAsync(string logText = "")
         {
-            return await _dbSet.FromCacheAsync();
+            try
+            {
+                var result=await _dbSet.FromCacheAsync();
+                StateRead();
+                _logger?.Read(logText);
+                return result;
+            }
+            catch(Exception exception)
+            {
+                StateError(exception, logText);
+                _logger?.Error(exception, logText);
+                return null;
+            }
+            
         }
         public async Task<IEnumerable<TEntity>> FindFromCacheAsync(Func<TEntity, bool> func, string logText = "")
         {
@@ -414,7 +490,7 @@ namespace SQRRepository
             return null;
             //return _dbSet.Where(func).AsQueryable().FromCache(date).;
         }
-        public BaseQueryFilter Filter(Func<TEntity, bool> func, string logtext)
+        public BaseQueryFilter Filter(Func<TEntity, bool> func, string logtext="")
         {
             return _context.Filter<TEntity>(m => m.Where(func).AsQueryable());
         }

@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
 
-namespace SQRRepository.Interfaces
+namespace SQLRepository.Interfaces
 {
     public interface IDbContext
     {

@@ -1,4 +1,4 @@
-﻿namespace Joha.Interfaces
+﻿namespace Joha.Interfaces.Entity
 {
     public interface IEntity<TKey>
     {

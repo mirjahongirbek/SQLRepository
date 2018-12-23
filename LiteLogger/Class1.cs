@@ -1,4 +1,6 @@
 ﻿using Joha.Interfaces;
+using Joha.Interfaces.Enums;
+using Joha.Interfaces.Logger;
 using System;
 
 namespace LiteLogger
@@ -33,6 +35,31 @@ namespace LiteLogger
         }
 
         public void Update(TEntity result, string text = "")
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Read(string text = "")
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Update(TEntity old, TEntity newEntity, string text = "")
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Error(Exception exception)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Error(Exception exception, string text = "")
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Error(Exception exception, TEntity result, MethodType type, string text = "")
         {
             throw new NotImplementedException();
         }
